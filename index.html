@@ -1,54 +1,99 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>Formulário de Estoque</title>
+  <meta charset="UTF-8" />
+  <title>Saída de Estoque</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
-    form { background: #fff; padding: 20px; border-radius: 8px; max-width: 500px; margin: auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    textarea, input, select, button { width: 100%; margin-top: 10px; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
-    button { background-color: #444; color: white; font-weight: bold; cursor: pointer; }
+    body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+    form { background: #fff; padding: 20px; border-radius: 10px; max-width: 600px; margin: auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input, select, button { padding: 10px; margin-top: 10px; width: 100%; border-radius: 5px; border: 1px solid #ccc; }
+    table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    .produto-linha td { padding: 5px; }
+    .add-btn { margin-top: 10px; background: #4CAF50; color: white; font-weight: bold; border: none; cursor: pointer; }
+    .submit-btn { background: #333; color: white; font-weight: bold; border: none; margin-top: 20px; }
+    #mensagem { margin-top: 20px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <form id="estoque-form">
-    <h2>Registro de Saída ou Perda</h2>
+  <form id="formulario">
+    <h2>Saída / Perda de Estoque</h2>
 
-    <label for="tipo">Tipo:</label>
-    <select id="tipo" name="tipo" onchange="mostrarMotivo(this.value)">
+    <label>Tipo:</label>
+    <select id="tipo" required>
       <option value="Saída">Saída</option>
       <option value="Perda">Perda</option>
     </select>
 
-    <label for="produtos">Produtos (um por linha):</label>
-    <textarea id="produtos" name="produtos" rows="6" required></textarea>
+    <label>Responsável:</label>
+    <input type="text" id="responsavel" required />
 
-    <label for="responsavel">Responsável:</label>
-    <input type="text" id="responsavel" name="responsavel" required>
+    <label>Motivo (se houver):</label>
+    <input type="text" id="motivo" />
 
-    <div id="motivo-div" style="display:none;">
-      <label for="motivo">Motivo da perda:</label>
-      <input type="text" id="motivo" name="motivo">
-    </div>
+    <label>Produtos:</label>
+    <table id="tabela-produtos">
+      <thead>
+        <tr><th>Produto</th><th>Quantidade</th></tr>
+      </thead>
+      <tbody id="produtos-body">
+        <tr class="produto-linha">
+          <td><input type="text" name="produto" required></td>
+          <td><input type="number" name="quantidade" required></td>
+        </tr>
+      </tbody>
+    </table>
+    <button type="button" class="add-btn" onclick="adicionarProduto()">+ Adicionar Produto</button>
 
-    <button type="submit">Enviar</button>
-    <p id="mensagem" style="text-align:center; margin-top:10px;"></p>
+    <button type="submit" class="submit-btn">Enviar</button>
+    <div id="mensagem"></div>
   </form>
 
   <script>
-    function mostrarMotivo(valor) {
-      document.getElementById("motivo-div").style.display = valor === "Perda" ? "block" : "none";
+    function adicionarProduto() {
+      const tbody = document.getElementById("produtos-body");
+      const novaLinha = document.createElement("tr");
+      novaLinha.classList.add("produto-linha");
+      novaLinha.innerHTML = `
+        <td><input type="text" name="produto" required></td>
+        <td><input type="number" name="quantidade" required></td>
+      `;
+      tbody.appendChild(novaLinha);
     }
 
-    document.getElementById("estoque-form").addEventListener("submit", async function(e) {
+    document.getElementById("formulario").addEventListener("submit", async function (e) {
       e.preventDefault();
 
       const tipo = document.getElementById("tipo").value;
-      const produtos = document.getElementById("produtos").value;
-      const responsavel = document.getElementById("responsavel").value;
-      const motivo = document.getElementById("motivo").value;
+      const responsavel = document.getElementById("responsavel").value.trim();
+      const motivo = document.getElementById("motivo").value.trim();
 
-      const dados = { tipo, produtos, responsavel, motivo: tipo === "Perda" ? motivo : null };
+      if (!responsavel) {
+        alert("Por favor, preencha o nome do responsável.");
+        return;
+      }
+
+      if (tipo === "Perda" && !motivo) {
+        alert("Por favor, informe o motivo da perda.");
+        return;
+      }
+
+      const linhas = document.querySelectorAll(".produto-linha");
+      let produtosTexto = "";
+      linhas.forEach(linha => {
+        const produto = linha.querySelector("input[name='produto']").value.trim();
+        const quantidade = linha.querySelector("input[name='quantidade']").value.trim();
+        if (produto && quantidade) {
+          produtosTexto += `${produto} ${quantidade}\n`;
+        }
+      });
+
+      const dados = {
+        tipo,
+        responsavel,
+        motivo,
+        produtos: produtosTexto.trim()
+      };
 
       try {
         const resposta = await fetch("https://servidor-estoque.onrender.com/enviar", {
@@ -58,20 +103,16 @@
         });
 
         const resultado = await resposta.json();
-        const msg = document.getElementById("mensagem");
-
-        if (resposta.ok) {
-          msg.style.color = "green";
-          msg.textContent = "Enviado com sucesso!";
-          document.getElementById("estoque-form").reset();
-          mostrarMotivo("Saída");
-        } else {
-          msg.style.color = "red";
-          msg.textContent = "Erro ao enviar: " + resultado.mensagem;
-        }
-      } catch (err) {
-        document.getElementById("mensagem").style.color = "red";
-        document.getElementById("mensagem").textContent = "Erro de conexão com o servidor.";
+        document.getElementById("mensagem").textContent = resultado.mensagem || "Enviado!";
+        document.getElementById("formulario").reset();
+        document.getElementById("produtos-body").innerHTML = `
+          <tr class="produto-linha">
+            <td><input type="text" name="produto" required></td>
+            <td><input type="number" name="quantidade" required></td>
+          </tr>
+        `;
+      } catch (error) {
+        document.getElementById("mensagem").textContent = "Erro ao enviar os dados.";
       }
     });
   </script>
